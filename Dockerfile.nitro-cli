@@ -1,0 +1,23 @@
+FROM ubuntu@sha256:aba80b77e27148d99c034a987e7da3a287ed455390352663418c0f2ed40417fe
+
+#these 2 lines prevent tzdata from hanging
+ENV TZ=Asia/Dubai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt update && apt install -y gcc curl unzip libssl-dev openssl pkg-config llvm-dev libclang-dev clang docker.io
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain==1.55.0
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN curl https://codeload.github.com/aws/aws-nitro-enclaves-cli/zip/8af39b8cdcda6cc50549dee0d3f5c5c89d940e67 -o nitro-cli.zip
+RUN unzip nitro-cli.zip
+ARG SRCDIR=aws-nitro-enclaves-cli-8af39b8cdcda6cc50549dee0d3f5c5c89d940e67
+RUN cd $SRCDIR && cargo build --release
+# nitro-cli expects this file to exist
+RUN mkdir /var/log/nitro_enclaves && > /var/log/nitro_enclaves/nitro_enclaves.log
+# blobs must be in this folder
+RUN mkdir -p /usr/share/nitro_enclaves/blobs
+RUN cp $SRCDIR/blobs/x86_64/* /usr/share/nitro_enclaves/blobs
+COPY nitro-cli.sh make_enclave.sh app/
+RUN chmod +x app/nitro-cli.sh app/make_enclave.sh
+CMD ["./app/nitro-cli.sh"]
+
+

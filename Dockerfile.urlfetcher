@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+# deterministically build the rust app (which retrieves the attestation doc from the enclave)
+# then copy the app into the enclave image
+FROM ubuntu@sha256:aba80b77e27148d99c034a987e7da3a287ed455390352663418c0f2ed40417fe AS rustapp_builder
+COPY rs app/rs
+
+# rust needs gcc's linker. I was unable to pin gcc's version because Ubuntu repos update gcc
+# with new security patches and don't keep old versions.
+# It appears that gcc's linker does not have an effect on reproducibility of rust build process.
+RUN apt update && apt install -y gcc curl
+
+# use a specific rust version for deterministic builds
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain==1.55.0
+ENV PATH="/root/.cargo/bin:${PATH}"
+# install target to build for the enclave environment
+RUN rustup +1.55.0 target add x86_64-unknown-linux-musl --toolchain 1.55.0
+# all rust packages are pinned in Cargo.lock
+RUN cd app/rs && cargo +1.55.0 build --release --target x86_64-unknown-linux-musl
+
+
+FROM ubuntu@sha256:aba80b77e27148d99c034a987e7da3a287ed455390352663418c0f2ed40417fe
+COPY --from=rustapp_builder app/rs/target/x86_64-unknown-linux-musl/release/attestation_retriever app/attestation_retriever
+COPY --from=rustapp_builder app/rs/target/x86_64-unknown-linux-musl/release/entropy_retriever app/entropy_retriever
+COPY server.py urlfetcher.sh traffic-forwarder.py dpkg_pinned app/
+
+RUN echo "deb http://archive.ubuntu.com/ubuntu/ focal main universe" > /etc/apt/sources.list
+RUN apt update --assume-no && apt install -y $(cat app/dpkg_pinned)
+
+RUN chmod +x ./app/urlfetcher.sh
+CMD ["./app/urlfetcher.sh"]

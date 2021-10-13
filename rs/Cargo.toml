@@ -1,0 +1,26 @@
+[package]
+name = "att_doc_retriever_sample"
+version = "0.1.0"
+authors = ["Doru-Florin Blanzeanu <blanzed@amazon.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "attestation_retriever"
+path = "src/attestation_retriever.rs"
+
+[[bin]]
+name = "entropy_retriever"
+path = "src/entropy_retriever.rs"
+
+[dependencies]
+serde_bytes = "0.11"
+
+[dependencies.nsm-driver]
+git = "https://github.com/aws/aws-nitro-enclaves-nsm-api.git"
+rev = "4f468c4"
+
+[dependencies.nsm-io]
+git = "https://github.com/aws/aws-nitro-enclaves-nsm-api.git"
+rev = "4f468c4"

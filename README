@@ -1,0 +1,31 @@
+URLFetcher is a deterministicaly built Nitro enclave which fetches a list of URLS and returns an attestaion document signed by Amazon with a hash of the whole request/response transcript.
+This allows anyone to cryptographically prove the contents of any publicly accessible URL on the web. 
+
+You need docker to build URLFetcher deterministically (this will take ~ 15 min) :
+
+docker build --no-cache -t urlfetcher -f Dockerfile.urlfetcher . 
+docker build --no-cache -t nitro-cli -f Dockerfile.nitro-cli .
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v /tmp:/tmp -ti nitro-cli 
+
+The final output must be:
+{
+  "Measurements": {
+    "HashAlgorithm": "Sha384 { ... }",
+    "PCR0": "f70217239e8a1cb0f3c010b842a279e2b8d30d3700d7e4722fef22291763479a13783dc76d5219fabbd7e5aa92a7b255",
+    "PCR1": "c35e620586e91ed40ca5ce360eedf77ba673719135951e293121cb3931220b00f87b5a15e94e25c01fecd08fc9139342",
+    "PCR2": "efba114128ccd6af1d1366a12c1ac89e4a4ca5ea1434d779efadfd3ec0d1da5b7c0d8525239fac29ffde2946e07d1c16"
+  }
+}
+
+Cleaning up:
+docker image rm -f urlfetcher nitro-cli
+
+The resulting /tmp/urlfetcher.eif can be launched in an AWS EC2 Nitro-capable instance.
+
+After running the enclave on EC2:
+1. make sure that an HTTP proxy is listening on port 8888 on AWS host machine (e.g. tinyproxy) 
+2. run python3 tcp_proxy.py on the host machine
+3. send urls.json formatted like ["url1","url2",...] to the enclave from the host machine with:
+   curl -d '@urls.json' 127.0.0.1:10011 --http0.9 -o enclaveResponse 
+4. enclaveResponse is a concatenation of :
+<4 bytes> length of the transcript | transcript | attestation document with transcript hash in the user_data field
